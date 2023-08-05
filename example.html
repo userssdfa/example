@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        canvas{
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+const can = document.getElementById("canvas");
+const ctx = can.getContext("2d");
+can.width = 500;
+can.height = 500;
+can.style.border = "2px solid #555"
+can.style.cursor = "none"
+ctx.font = "20px arial"
+let fry = {
+    x:250,y:250,r:2,
+    dx:0,dy:0,
+    timer:0,timeLimit:100,
+    danger:false,
+    speed:2
+}
+let sign1 = Math.random() < 0.5 ? 1 : -1
+let sign2 = Math.random() < 0.5 ? 1 : -1
+let random1 = Math.random()*sign1;
+let random2 = Math.random()*(1-random1)*sign2;
+
+let mouse = {
+    x: 250,y: 250,
+    bx: 0, by: 0,
+    press:false,pCount:0,
+    size: 10,
+}
+let mouseSpeed = 0
+let mouseDistance = 0
+let mFAngle = Math.atan2(fry.y-mouse.y,fry.x-mouse.x);
+let runSpeed = 50;
+let runDistance = 25;
+let score = 0
+let timeLimit = 1000
+let time = timeLimit;
+let pressFry = []
+window.addEventListener("mousemove",e=>{
+    mouse.bx = mouse.x
+    mouse.by = mouse.y
+    mouse.x = e.offsetX
+    mouse.y = e.offsetY
+
+    if(mouse.pCount>10)mouse.press = false;
+    mouse.pCount++;
+})
+
+window.addEventListener("mousedown",e=>{
+    mouse.press = true;
+    mouse.pCount = 0
+    if(time<=0){
+        time = timeLimit;
+        score = 0;
+    }
+})
+window.addEventListener("mouseup",e=>{
+    mouse.press = false;
+})
+
+
+function animate(){
+    ctx.clearRect(0,0,can.width,can.height)
+    if(time>0){
+        mouseSpeed += Math.min(50,Math.sqrt((mouse.x-mouse.bx)**2+(mouse.y-mouse.by)**2));
+        mouseSpeed = Math.max(mouseSpeed-5,0);
+        mouseSpeed = Math.min(mouseSpeed,150)
+        mouseDistance = Math.sqrt((mouse.x-fry.x)**2+(mouse.y-fry.y)**2);
+        mFAngle = Math.atan2(fry.y-mouse.y,fry.x-mouse.x);
+        
+        fryRender();
+        time--
+    }else{
+        ctx.font = "75px arial"
+        
+        let text = `score: ${score}`
+        if(score===0)text = `score: ぜろｗ`
+        const width = ctx.measureText(text).width;
+        ctx.fillText(text,(can.width-width)/2,can.height/2)
+        ctx.font = "30px arial"
+        let text2 = "Click To Start";
+        const width2 = ctx.measureText(text2).width
+        ctx.fillText(text2,(can.width-width2)/2,can.height/2+100)
+    }
+    for(let efect of pressFry){
+        efect[2]++;
+        ctx.save();
+        ctx.strokeStyle = `rgba(0,0,0,${(25-efect[2])/25})`
+        ctx.beginPath();
+        ctx.arc(efect[0],efect[1],efect[2],0,Math.PI*2);
+        ctx.stroke();
+        ctx.restore();
+    }
+    swatterRender();
+    ctx.font = "20px arial"
+    ctx.fillText(`score: ${score}`,10,20)
+    ctx.fillText(`time: ${time}`,10,40)
+
+    ctx.save();
+    ctx.fillStyle = "rgba(15,150,253,0.5)"
+    ctx.fillRect(20,475,Math.min(mouseSpeed*4,can.width-40),20)
+    ctx.fillStyle = "rgba(250,163,50,0.2)"
+    ctx.fillRect(20+runSpeed*4,475,can.width-40-runSpeed*4,20)
+    ctx.fillStyle = "rgba(54,255,64,0.2)"
+    ctx.fillRect(20,475,runSpeed*4,20)
+    ctx.strokeStyle = mouseDistance<runDistance ? "#E6257D" : "gray"
+    ctx.strokeRect(20,475,can.width-40,20)
+    ctx.restore();
+}
+setInterval(animate,1000/60)
+
+
+function swatterRender(){
+    let distance = Math.sqrt((mouse.x-fry.x)**2+(mouse.y-fry.y)**2)
+    if(mouse.press && distance<mouse.size){
+        pressFry.push([fry.x,fry.y,0,false])
+        fryReset();
+        score++;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(mouse.x-25,mouse.y+25)
+    ctx.lineTo(mouse.x+20-25,mouse.y-20+25)
+    ctx.lineTo(mouse.x+15-25,mouse.y-25+25)
+    ctx.lineTo(mouse.x+25-25,mouse.y-35+25)
+    ctx.lineTo(mouse.x+35-25,mouse.y-25+25)
+    ctx.lineTo(mouse.x+25-25,mouse.y-15+25)
+    ctx.lineTo(mouse.x+15-25,mouse.y-25+25)
+    ctx.stroke();
+
+    if(mouse.press){
+        ctx.beginPath();
+        ctx.moveTo(mouse.x,mouse.y-10)
+        ctx.lineTo(mouse.x+5,mouse.y-20)
+        ctx.lineTo(mouse.x+10,mouse.y-10)
+        ctx.lineTo(mouse.x+17,mouse.y-15)
+        ctx.lineTo(mouse.x+15,mouse.y-5)
+        ctx.lineTo(mouse.x+25,mouse.y-5)
+        ctx.lineTo(mouse.x+10,mouse.y+5)
+        ctx.stroke();
+    }
+    ctx.save();
+    ctx.fillStyle = "rgb(0,255,100,0.2)"
+    ctx.beginPath();
+    ctx.arc(mouse.x,mouse.y,mouse.size,0,Math.PI*2);
+    ctx.fill()
+    ctx.restore();
+}
+function fryReset(){
+    fry.danger = false;
+    fry.x = Math.random()*can.width
+    fry.y = Math.random()*can.height
+    sign1 = Math.random() < 0.5 ? 1 : -1
+    sign2 = Math.random() < 0.5 ? 1 : -1
+    random1 = Math.random()*sign1;
+    random2 = Math.random()*(1-random1)*sign2;
+    fry.timer = 0
+    fry.timeLimit = Math.random()*50 + 50
+
+    if(Math.random()<0.05){
+        random1 = 0;
+        random2 = 0;
+        fry.timeLimit = Math.random()*200 + 50
+    }
+}
+function fryRender(){
+    fry.timer ++;
+
+    if(mouseSpeed>runSpeed && mouseDistance<runDistance){
+        fry.danger = true;
+        fry.dx = Math.cos(mFAngle)*4
+        fry.dy = Math.sin(mFAngle)*4
+    }
+
+
+    fry.x += random2*fry.speed
+    fry.y += random1*fry.speed
+    if(fry.danger){
+        fry.x += fry.dx
+        fry.y += fry.dy
+    }
+
+    if(fry.x>can.width || fry.x<0){random2*=-1;fry.dx*=-1}
+    if(fry.y>can.height || fry.y<0){random1*=-1;fry.dy*=-1}
+    if(fry.x>can.width)fry.x=can.width
+    if(fry.x<0)fry.x = 0
+    if(fry.y>can.height)fry.y=can.height
+    if(fry.y<0)fry.y = 0
+
+    if(fry.timer>fry.timeLimit){
+        fry.danger = false;
+        sign1 = Math.random() < 0.5 ? 1 : -1
+        sign2 = Math.random() < 0.5 ? 1 : -1
+        random1 = Math.random()*sign1;
+        random2 = Math.random()*(1-random1)*sign2;
+        fry.timer = 0
+        fry.timeLimit = Math.random()*50 + 50
+
+        if(Math.random()<0.05){
+            random1 = 0;
+            random2 = 0;
+            fry.timeLimit = Math.random()*200 + 50
+        }
+    }
+    
+
+    ctx.beginPath();
+    ctx.save();
+    ctx.shadowBlur = fry.r*4; // 影のぼかしの程度
+    ctx.shadowColor = 'rgba(255,165,0,1)'; // 影の色
+    ctx.arc(fry.x,fry.y,fry.r*2,0,Math.PI*2)
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(fry.x,fry.y,fry.r,0,Math.PI*2)
+    ctx.fill();
+
+}
+
+</script>
+</body>
+</html>
