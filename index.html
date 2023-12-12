@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+const can = document.getElementById("canvas");
+const ctx = can.getContext("2d");
+
+can.width = 600;
+can.height = 600
+can.style.border = "2px solid #555"
+can.style.background = "linear-gradient(blue 0% 50%,pink 50% 100%)"
+
+class Ball{
+    constructor(game){
+        this.game = game
+        this.x = game.width/2
+        this.y = game.height*Math.random()+game.window[1];
+        this.r = 6
+        this.dy = 0;
+    }
+    render(){
+
+        let color = (this.game.gravity>0)? "pink" : "blue"
+        this.dy += this.game.gravity;
+        this.y += this.dy;
+
+
+        const a = this.game.width/2-this.x
+        this.x += a/100000;
+
+        if(this.y<this.game.y+this.r){
+            this.dy = -this.dy*0.7
+            this.y = this.game.y+this.r
+        }else if(this.y>this.game.y+this.game.height-this.r){
+            this.dy = -this.dy*0.7
+            this.y = this.game.y+this.game.height-this.r
+        }
+        
+
+        ctx.lineWidth = 1
+        ctx.fillStyle = color;
+        ctx.strokeStyle = "white"
+        ctx.beginPath();
+        ctx.arc(this.x,this.y,this.r,0,Math.PI*2)
+        ctx.fill();
+        ctx.stroke();
+    }
+}
+
+class Segment{
+    constructor(game,A,B,length){
+        this.game = game;
+        this.A = A;
+        this.B = B;
+
+        this.length = length;
+    }
+
+    render(){
+        this.A.x -= this.game.speed
+        this.B.x -= this.game.speed
+        let unit = this.game.unit;
+
+        
+
+        ctx.lineWidth = 4
+        ctx.strokeStyle = "#fff";
+        for(let i=0; i<this.length; i++){
+            let y = this.A.y + i*unit
+            
+        }
+        ctx.beginPath();
+        ctx.moveTo(this.A.x,this.A.y);
+        ctx.lineTo(this.B.x,this.B.y);
+        ctx.stroke();
+    }
+}
+
+class Game{
+    constructor(){
+        this.width = can.width
+        this.height = 400;
+        this.x = 0
+        this.y = can.height/2-this.height/2
+        this.window = [0,can.height/2-this.height/2,this.width,this.height]
+
+        this.speed = 1
+        this.gravity = 0.02
+        this.balls = []
+
+        this.RepeatTime = 100;
+        this.pushTime = 0
+        this.unit = 50
+        this.segs = []
+
+        window.addEventListener("click",e=>{
+            this.gravity = -this.gravity
+        })
+        this.init();
+    }
+    init(){
+        for(let i=0; i<1; i++){
+            this.balls.push(new Ball(this))
+        }
+    }
+    pushSeg(){
+
+        let units = Math.floor(Math.random()*3)+1
+        let length = units*this.unit
+        let y1,y2
+        if(Math.random()<0.5){
+            y1 = this.y
+            y2 = this.y+length
+        }else{
+            y1 = this.y+this.height-length;
+            y2 = this.height+this.y
+        }
+        
+        this.segs.push(new Segment(this,{x:this.width,y:y1},{x:this.width,y:y2},units))
+    }
+    render(){
+        this.pushTime ++;
+        if(this.RepeatTime < this.pushTime){
+            this.pushSeg();
+            this.pushTime = 0
+        }
+
+        ctx.fillStyle = "#000"
+        ctx.fillRect(...this.window)
+
+        this.balls.forEach(ball=>{
+            ball.render()
+        })
+        this.segs.forEach(seg=>{
+            seg.render()
+        })
+        this.balls.forEach(ball=>{
+            this.segs.forEach(seg=>{
+                if(lineCircleCollision(seg.A,seg.B,ball)){
+                    let AP = {x:seg.A.x-ball.x,y:seg.A.y-ball.y}
+                    let BP = {x:seg.B.x-ball.x,y:seg.B.y-ball.y}
+                    let clossproduct= AP.x*BP.y - AP.y*BP.x
+                    if(clossproduct>0){
+                        ball.x = seg.A.x-ball.r
+                    }else{
+                        ball.x = seg.A.x+ball.r
+                    }
+                }
+
+            })
+        })
+    }
+}
+let game = new Game()
+
+
+function animate(){
+    ctx.clearRect(0,0,can.clientWidth,can.clientHeight)
+    game.render()
+    requestAnimationFrame(animate)
+}
+
+animate()
+
+
+function lineCircleCollision(A,B,circle) {
+    function len_vec2(vec) {
+      return vec[0] * vec[0] + vec[1] * vec[1];
+    }
+    
+    function inner_prod(vec1, vec2) {
+      return vec1[0] * vec2[0] + vec1[1] * vec2[1];
+    }
+  
+    var pos_o = [circle.x, circle.y];
+    var r = circle.r;
+    var pos_a = [A.x, A.y];
+    var pos_b = [B.x, B.y];
+  
+    if (pos_a[0] === pos_b[0] && pos_a[1] === pos_b[1]) {
+      return false;
+    }
+  
+    if (r <= 0) {
+      return false;
+    }
+  
+    var vec_oa = [pos_a[0] - pos_o[0], pos_a[1] - pos_o[1]];
+    var vec_ob = [pos_b[0] - pos_o[0], pos_b[1] - pos_o[1]];
+  
+    var len_oa2 = len_vec2(vec_oa);
+    var len_ob2 = len_vec2(vec_ob);
+    var inner_ab = inner_prod(vec_oa, vec_ob);
+  
+    var a = len_oa2 + len_ob2 - 2 * inner_ab;
+    var b = -2 * len_oa2 + 2 * inner_ab;
+    var c = len_oa2 - r * r;
+  
+    var det = b * b - 4 * a * c;
+    if (det < 0) {
+      return false;
+    }
+  
+    var s1 = (-b - Math.sqrt(det)) / (2 * a);
+    var s2 = (-b + Math.sqrt(det)) / (2 * a);
+  
+    return (s1 <= 1) && (0 <= s2);
+  }
+
+
+</script>
+</body>
+</html>
