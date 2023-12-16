@@ -11,10 +11,42 @@
 const can = document.getElementById("canvas");
 const ctx = can.getContext("2d");
 
-can.width = 600;
+can.width = 380;
 can.height = 600
 can.style.border = "2px solid #555"
 can.style.background = "linear-gradient(blue 0% 50%,pink 50% 100%)"
+
+class Debug{
+    constructor(game){
+
+        this.size = 20
+        this.texts = [
+            {x:10,y:20,text:game.gravity},
+            {x:10,y:40,text:game.frame}
+        ]
+
+        this.font = "20px Arial";
+        this.fillStyle = "green";
+        this.textAlign = "left";
+        this.textBaseline = "middle";
+        
+    }
+    render(){
+        this.texts = [
+            {x:10,y:20,name:"gravity",value:game.gravity},
+            {x:10,y:40,name:"frame",value:game.frame},
+            {x:10,y:60,name:"score",value:game.score},
+        ]
+        ctx.font = this.font;
+        ctx.fillStyle = this.fillStyle;
+        ctx.textAlign = this.textAlign;
+        ctx.textBaseline = this.textBaseline;
+        this.texts.forEach(data=>{
+            ctx.fillText(`${data.name}: ${data.value}`,data.x,data.y)
+        })
+    }
+}
+
 
 class Ball{
     constructor(game){
@@ -23,26 +55,39 @@ class Ball{
         this.y = game.height*Math.random()+game.window[1];
         this.r = 6
         this.dy = 0;
+
+        this.trajectories = new Trajectories();
+        this.bound = false;
+        this.boundSide = null;
     }
     render(){
 
+        if(this.bound){
+            this.trajectories.add(this)
+        }
         let color = (this.game.gravity>0)? "pink" : "blue"
         this.dy += this.game.gravity;
         this.y += this.dy;
 
 
-        const a = this.game.width/2-this.x
-        this.x += a/100000;
+        const center = this.game.width/2-this.x
+        this.x += center/1000;
 
         if(this.y<this.game.y+this.r){
             this.dy = -this.dy*0.7
             this.y = this.game.y+this.r
+            this.bound = true;
+            this.enclose()
+            this.boundSide = "bottom"
         }else if(this.y>this.game.y+this.game.height-this.r){
             this.dy = -this.dy*0.7
             this.y = this.game.y+this.game.height-this.r
+            this.bound = true;
+            this.enclose()
+            this.boundSide = "top"
         }
-        
 
+        this.trajectories.render()
         ctx.lineWidth = 1
         ctx.fillStyle = color;
         ctx.strokeStyle = "white"
@@ -51,15 +96,42 @@ class Ball{
         ctx.fill();
         ctx.stroke();
     }
+    enclose(){
+        if(this.trajectories.traject.length===0)return;
+        switch(this.boundSide){
+            case "bottom":
+                this.game.segs.forEach(seg=>{
+                    console.log(this.trajectories.traject.length)
+                    if( seg.side === "top" && 
+                        this.trajectories.traject[0].x<seg.A.x &&
+                        this.trajectories.traject[this.trajectories.traject.length-1].x>seg.A.x){
+                            this.game.score++;
+
+                        }
+                })
+                break;
+            case "top":
+            this.game.segs.forEach(seg=>{
+                if(seg.side === "bottom" &&
+                    this.trajectories.traject[0].x<seg.A.x &&
+                    this.trajectories.traject[this.trajectories.traject.length-1].x>seg.A.x){
+                        this.game.score++;
+                    }
+            })
+            break;
+        }
+    }
+    
 }
 
 class Segment{
-    constructor(game,A,B,length){
+    constructor(game,A,B,length,side){
         this.game = game;
         this.A = A;
         this.B = B;
 
         this.length = length;
+        this.side = side;
     }
 
     render(){
@@ -70,7 +142,7 @@ class Segment{
         
 
         ctx.lineWidth = 4
-        ctx.strokeStyle = "#fff";
+        ctx.strokeStyle = "#eee";
         for(let i=0; i<this.length; i++){
             let y = this.A.y + i*unit
             
@@ -79,6 +151,28 @@ class Segment{
         ctx.moveTo(this.A.x,this.A.y);
         ctx.lineTo(this.B.x,this.B.y);
         ctx.stroke();
+    }
+}
+//軌跡
+class Trajectories{
+    constructor(){
+        this.traject = []
+    }
+    add(item){
+        this.traject.push({x:item.x,y:item.y})
+    }
+    render(){
+        this.traject.forEach(i => i.x -= 2)
+        ctx.strokeStyle = "black";
+        for(let i=0; i<this.traject.length; i++){
+            if(i===0){
+                ctx.beginPath();
+                ctx.moveTo(this.traject[i].x,this.traject[i].y)
+            }else{
+                ctx.lineTo(this.traject[i].x,this.traject[i].y)
+            }
+        }
+        ctx.stroke()
     }
 }
 
@@ -90,17 +184,28 @@ class Game{
         this.y = can.height/2-this.height/2
         this.window = [0,can.height/2-this.height/2,this.width,this.height]
 
-        this.speed = 4
-        this.gravity = 0.08
+        this.speed = 2
+        this.gravity = 0.06
         this.balls = []
 
-        this.RepeatTime = 100;
+        
+
+        this.RepeatTime = 500;
         this.pushTime = 0
         this.unit = 50
         this.segs = []
+        this.frame = 0;
+
+        this.score = 0
+
+        this.debug = new Debug(this)
 
         window.addEventListener("click",e=>{
             this.gravity = -this.gravity
+            this.balls.forEach(ball=>{
+                ball.bound = false
+                ball.trajectories.traject = []
+            })
         })
         this.init();
     }
@@ -113,25 +218,28 @@ class Game{
 
         let units = Math.floor(Math.random()*3)+1
         let length = units*this.unit
-        let y1,y2
+        let y1,y2,side
         if(Math.random()<0.5){
             y1 = this.y
             y2 = this.y+length
+            side = "top"
         }else{
             y1 = this.y+this.height-length;
             y2 = this.height+this.y
+            side = "bottom"
         }
         
-        this.segs.push(new Segment(this,{x:this.width,y:y1},{x:this.width,y:y2},units))
+        this.segs.push(new Segment(this,{x:this.width,y:y1},{x:this.width,y:y2},units,side))
     }
-    render(){
-        this.pushTime ++;
+    render(deltaTime){
+        this.a += deltaTime;
+        this.pushTime += deltaTime;
         if(this.RepeatTime < this.pushTime){
             this.pushSeg();
             this.pushTime = 0
         }
 
-        ctx.fillStyle = "#000"
+        ctx.fillStyle = "#222"
         ctx.fillRect(...this.window)
 
         this.balls.forEach(ball=>{
@@ -148,6 +256,7 @@ class Game{
                     let clossproduct= AP.x*BP.y - AP.y*BP.x
                     if(clossproduct>0){
                         ball.x = seg.A.x-ball.r
+                        //if(ball.x<ball.r)console.log("gameover")
                     }else{
                         ball.x = seg.A.x+ball.r
                     }
@@ -155,18 +264,51 @@ class Game{
 
             })
         })
+        this.debug.render()
     }
 }
 let game = new Game()
 
+let fps = 1000/60;
+let deltaTime = 0;
+let lastTime = 0
+let stackTime = 0;
+let frame = 0;
+let behind = true
 
-function animate(){
-    ctx.clearRect(0,0,can.clientWidth,can.clientHeight)
-    game.render()
+window.addEventListener("focus", function() {
+    behind = false;
+});
+
+window.addEventListener("blur", function() {
+    behind = true
+});
+function animate(timeStamp){
+    if(!behind){
+            stackTime += timeStamp - lastTime;
+            deltaTime += timeStamp - lastTime;
+        
+        if(stackTime>1000){
+            game.frame = frame;
+            stackTime-=1000;
+            frame = 0;
+        }
+
+        while(deltaTime>fps){
+            frame++
+            ctx.clearRect(0,0,can.clientWidth,can.clientHeight)
+            game.render(fps)
+
+            deltaTime -= fps;
+        }
+    }
+
+
+    lastTime = timeStamp;
     requestAnimationFrame(animate)
 }
 
-animate()
+animate(0)
 
 
 function lineCircleCollision(A,B,circle) {
